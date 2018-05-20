@@ -129,6 +129,16 @@ _validatePath ()
         echo "Error: $fpath: is a directory"
         exit 1
     fi
+    if [ -e "$fpath" ] && [ ! -w "$fpath" ]; then
+        echo "Error: $fpath: is not writeable"
+        exit 1
+    fi
+    if _has_command dirname; then
+        if [ ! -w "$(dirname "$fpath")" ]; then
+            echo "Error: Can not write to target directory of $fpath"
+            exit 1
+        fi
+    fi
 }
 
 # Copies a file into place.
