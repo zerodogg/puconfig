@@ -43,6 +43,7 @@ clean:
 	rm -f puconfig-*.tar.bz2
 	rm -rf puconfig-$(VERSION)
 	rm -f puconfig.1
+	rm -f example/puconfig-debug.sh
 	rm -rf /tmp/puconfig.test
 # Verify syntax
 test:
@@ -60,3 +61,9 @@ distrib: clean test man
 	tar -jcvf puconfig-$(VERSION).tar.bz2 ./puconfig-$(VERSION)
 	rm -rf puconfig-$(VERSION)
 	rm -f puconfig.1
+checkbashisms:
+	cd example; ../puconfig debug-script
+# $HOST and $UID messages are expected, we use them as fallbacks, so we don't
+# actually rely upon them
+	checkbashisms -p -n -x example/puconfig-debug.sh 2>&1 | egrep -v '\$$(HOST|UID)'; true
+	rm -f example/puconfig-debug.sh
