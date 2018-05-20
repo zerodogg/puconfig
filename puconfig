@@ -538,7 +538,7 @@ sub deployTo
 
     print "online. Writing configs...";
 
-    open(my $out,'|-',@ssh,$host,'env PUCONFIG_SILENT=1 sh');
+    open(my $out,'|-',@ssh,$host,'PUCONFIG_SILENT=1 sh');
     print {$out} $script;
     close($out);
 
