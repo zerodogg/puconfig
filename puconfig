@@ -651,7 +651,7 @@ sub main
         'help|h' => sub { usage(); exit 0; },
     ) or die 'Run ', basename($0), " --help for help\n";
 
-    my $command = shift(@ARGV);
+    my $command = shift(@ARGV) // '';
     if ($command eq 'setup')
     {
         my ($tmpfh,$file) = tempfile( 'puconfig-XXXXXXX', SUFFIX => '.sh', TMPDIR => 1, UNLINK => 1);
