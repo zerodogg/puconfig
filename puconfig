@@ -16,6 +16,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use 5.014;
+use warnings;
+use strict;
 
 our $VERSION = 0.1;
 use File::Temp qw(tempfile);
@@ -92,6 +94,7 @@ package puconfigShellWriter
         chmod(oct(700),$out);
         print {$out} $self->getShellScript();
         close($out);
+        return 1;
     }
 
     # Return the shell script as a string.
@@ -188,7 +191,7 @@ package puconfigShellWriter
         $confBlock = '_pucApplyConfig_'.$blockNo.'_'.$confBlock;
         return join("\n",
             "\n# Block for $name",
-            "$confBlock ()\n{",$outBlock,"}",
+            "$confBlock ()\n{",$outBlock,'}',
         ), $confBlock;
     }
 
@@ -232,13 +235,13 @@ package puconfigShellWriter
 
         if ($action eq 'must_match')
         {
-            push(@content,'if [ "$skip" = "0" ] && ! '.$function.' '.join(" ",@quoted).';then',
+            push(@content,'if [ "$skip" = "0" ] && ! '.$function.' '.join(' ',@quoted).';then',
                 "\t".'skip=1',
                 'fi');
         }
         elsif ($action eq 'must_not_match')
         {
-            push(@content,'if [ "$skip" = "0" ] && '.$function.' '.join(" ",@quoted).';then',
+            push(@content,'if [ "$skip" = "0" ] && '.$function.' '.join(' ',@quoted).';then',
                 "\t".'skip=1',
                 'fi');
         }
@@ -268,11 +271,11 @@ package puconfigShellWriter
         }
         if ($entry->{allowLocal})
         {
-            $allowLocal = shell_quote("true");
+            $allowLocal = shell_quote('true');
         }
         else
         {
-            $allowLocal = shell_quote("false");
+            $allowLocal = shell_quote('false');
         }
         if ($self->embed)
         {
@@ -352,7 +355,7 @@ package puconfigShellWriter
 
         if (!$entry->{target})
         {
-            die("Missing target entry for ".$entry->{source}."\n");
+            die('Missing target entry for '.$entry->{source}."\n");
         }
 
         push(@content,'targetFile='.__quotePath($entry->{target}));
@@ -469,7 +472,7 @@ package puconfigShellWriter
         my $string = shift;
         if(ref($string))
         {
-            die("quoteForShell appears to have been run as a method");
+            die('quoteForShell appears to have been run as a method');
         }
         if ($string =~ s/^~\/?//)
         {
@@ -488,7 +491,7 @@ package puconfigShellWriter
     {
         if(ref($_[0]))
         {
-            die("__quoteListForShell appears to have been run as a method");
+            die('__quoteListForShell appears to have been run as a method');
         }
         my @list;
         foreach my $entry (@_)
@@ -530,7 +533,7 @@ sub deployTo
     $| = 1;
 
 	print "$host: ";
-	print "Checking... ";
+	print 'Checking... ';
 
     if ( SilentSystem(@ssh,$host,'exit 132') != 132)
     {
@@ -538,20 +541,20 @@ sub deployTo
         return;
     }
 
-    print "online. Writing configs";
+    print 'online. Writing configs';
 
     my $silence = 1;
     if ($verbosity)
     {
-        say ":";
+        say ':';
         $silence = 0;
     }
     else
     {
-        print "...";
+        print '...';
     }
 
-    open(my $out,'|-',@ssh,$host,'PUCONFIG_SILENT='.$silence.' sh');
+    open(my $out,'|-',@ssh,$host,'PUCONFIG_SILENT='.$silence.' sh') or die('Failed to open() connection to '.$host);
     print {$out} $script;
     close($out);
 
@@ -559,24 +562,26 @@ sub deployTo
     {
         print "done\n";
     }
+    return 1;
 }
 
 # Outputs our usage information
 sub usage
 {
-    say "";
+    say '';
     say 'Usage: '.basename($0).' [command] [options?]';
-    say "";
-    say "Where [command] is one of:";
-    say "   setup           Installs config files to the current host";
-    say "   script          Writes a self-contained script that can be copied to other hosts";
-    say "                   and be run there to install the config files";
-    say "   deploy X        Deploy configs to X via ssh, where X is a list of hosts";
-    say "";
-    say "And [options?] can, optionally, be zero or more of:";
-    say "   -v, --verbose   Increases verbosity, may be supplied multiple times";
-    say "   -h, --help      Display this help screen and exit";
-    say "       --version   Output version information and exit";
+    say '';
+    say 'Where [command] is one of:';
+    say '   setup           Installs config files to the current host';
+    say '   script          Writes a self-contained script that can be copied to other hosts';
+    say '                   and be run there to install the config files';
+    say '   deploy X        Deploy configs to X via ssh, where X is a list of hosts';
+    say '';
+    say 'And [options?] can, optionally, be zero or more of:';
+    say '   -v, --verbose   Increases verbosity, may be supplied multiple times';
+    say '   -h, --help      Display this help screen and exit';
+    say '       --version   Output version information and exit';
+    return 1;
 }
 
 # Our main function, performs command-line handling
