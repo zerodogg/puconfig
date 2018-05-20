@@ -116,7 +116,7 @@ _has_perl_module ()
     if ! _has_command perl; then
         return 1
     fi
-    perl -e 'use($ARGV[0]) or die'  > /dev/null 2>&1
+    perl -e 'use($ARGV[0]) or die' "$1"  > /dev/null 2>&1
     return $?
 }
 
