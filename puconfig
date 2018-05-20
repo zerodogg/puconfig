@@ -26,7 +26,7 @@ package puconfigShellWriter
 {
     use YAML::XS qw(LoadFile);
     use Cwd qw(realpath);
-    use File::Basename qw(dirname);
+    use File::Basename qw(dirname basename);
     use String::ShellQuote qw(shell_quote);
 
     use Moo;
@@ -110,19 +110,40 @@ package puconfigShellWriter
         foreach my $source (sort keys %{$self->_files})
         {
             my $entry = $self->_files->{$source};
-            $entry->{source} = $source;
-            $entry->{sourceAbsolute} = realpath($source);
-            if (!-e $entry->{sourceAbsolute})
+            my @files = glob($source);
+            foreach my $sourcePart (@files)
             {
-                die($entry->{source}.': does not exist'."\n");
+                # Make a shallow copy of the data structure so that we can
+                # modify ->{target} without affecting subsequent entries
+                my $thisEntry = { %{$entry} };
+
+                $thisEntry->{source} = $sourcePart;
+                $thisEntry->{sourceAbsolute} = realpath($sourcePart);
+                if ($sourcePart ne $source)
+                {
+                    if ($thisEntry->{target} !~ m{/$})
+                    {
+                        die('Error: Saw filename containing glob characters ('.$source.')'."\n".
+                            'but target ('.$thisEntry->{target}.') appears to target a file.'."\n".
+                            'When the source contains a glob, the target must be a directory');
+                    }
+                }
+                if ($thisEntry->{target} =~ m{/$})
+                {
+                    $thisEntry->{target} .= basename($source);
+                }
+                if (!-e $thisEntry->{sourceAbsolute})
+                {
+                    die($thisEntry->{source}.': does not exist'."\n");
+                }
+                if (!defined $thisEntry->{sourceAbsolute})
+                {
+                    die('Failed to resolve the path to '.$source."\n");
+                }
+                my ($body,$name) = $self->_parseEntry($thisEntry);
+                $script .= $body."\n";
+                push(@functions,$name);
             }
-            if (!defined $entry->{sourceAbsolute})
-            {
-                die('Failed to resolve the path to '.$source."\n");
-            }
-            my ($body,$name) = $self->_parseEntry($entry);
-            $script .= $body."\n";
-            push(@functions,$name);
         }
         $script .= "applyConfigs ()\n";
         $script .= "{\n";

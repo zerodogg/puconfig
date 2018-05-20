@@ -65,7 +65,8 @@ latter is optional, see the section on aliases for more information.
 =head1 files
 
 Each key under "files" is a the path to a file. This path is either absolute,
-or relative to the directory that puconfig.yml lives in.
+or relative to the directory that puconfig.yml lives in. You may use globs (ie.
+*) in order to match several files.
 
 =head2 Basic example
 
@@ -82,7 +83,11 @@ The following settings are available under each config.
 =item I<target> (B<required>)
 
 This should contain the path to where to write the config. ~ will be expanded
-to the current user's home directory.
+to the current user's home directory, and if the target is a directory then that
+will be expanded to a file with the same basename as the source file in that directory.
+
+Note that if the source file is a glob, then target MUST be a directory path
+(ie. end with /).
 
 Example: I<target: ~/.some.conf>
 
