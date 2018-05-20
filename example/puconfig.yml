@@ -1,0 +1,43 @@
+files:
+    public/shell/bashrc:
+        target: /tmp/puconfig.test/.bashrc
+        scriptAfter: |
+            if [ ! -e /tmp/puconfig.test/.bash_profile ]; then
+                echo "source /tmp/puconfig.test/.bashrc" > /tmp/puconfig.test/.bash_profile
+            fi
+    public/shell/bashrc_desktop:
+        target: /tmp/puconfig.test/.bashrc_desktop
+        hosts: $Desktops
+    public/shell/shell_shared_termux:
+        target: /tmp/puconfig.test/.shell_shared_termux
+        scriptBefore: |
+            if [ ! -e /data/data/com.termux/files/usr/bin/termux-info ]; then
+                skip=1
+            fi
+    forward:
+        alwaysCopy: true
+        target: /tmp/puconfig.test/.forward
+        notHosts: ['n1','n2','n3','n4','n5']
+    gitignore:
+        target: /tmp/puconfig.test/.gitignore
+        chmod: 600
+    gpg-agent.server.conf:
+        target: /tmp/puconfig.test/.gnupg/gpg-agent.conf
+        hosts: serenity
+        notUsers: root
+        alwaysCopy: true
+        scriptAfter: |
+            if [ -x /usr/bin/pinentry-curses ]; then
+                echo "# Auto-added by setup script" >> $targetFile
+                echo "pinentry-program /usr/bin/pinentry-curses" >> $targetFile
+            fi
+    rclone.conf:
+        alwaysCopy: true
+        target: /tmp/puconfig.test/.rclone.conf
+        chmod: 600
+        hosts: $Desktops
+        users:
+            - zerodogg
+            - eskild
+aliases:
+    $Desktops: ['browncoats','firefly','wash','river','kaylee','jayne','zoe','whitefall','miranda']
