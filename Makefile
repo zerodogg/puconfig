@@ -62,8 +62,8 @@ distrib: clean test man
 	rm -rf puconfig-$(VERSION)
 	rm -f puconfig.1
 checkbashisms:
-	cd example; ../puconfig debug-script
+	./puconfig debug-script --config ./example/puconfig.yml
 # $HOST and $UID messages are expected, we use them as fallbacks, so we don't
 # actually rely upon them
-	checkbashisms -p -n -x example/puconfig-debug.sh 2>&1 | egrep -v '\$$(HOST|UID)'; true
-	rm -f example/puconfig-debug.sh
+	checkbashisms -p -n -x puconfig-debug.sh 2>&1 | egrep -v '\$$(HOST|UID)'; true
+	rm -f puconfig-debug.sh

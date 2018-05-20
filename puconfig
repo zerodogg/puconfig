@@ -21,14 +21,15 @@ use strict;
 
 our $VERSION = 0.1;
 use File::Temp qw(tempfile);
-use File::Basename qw(basename);
+use File::Basename qw(dirname basename);
 use Getopt::Long;
+use Cwd qw(getcwd realpath);
 
 # This class builds a shell script from a puconfig.yml file.
 package puconfigShellWriter
 {
     use YAML::XS qw(LoadFile);
-    use Cwd qw(realpath);
+    use Cwd qw(realpath getcwd);
     use File::Basename qw(dirname basename);
     use String::ShellQuote qw(shell_quote);
 
@@ -44,6 +45,15 @@ package puconfigShellWriter
     has 'configFile' => (
         is => 'ro',
         default => 'puconfig.yml'
+    );
+
+    # The directory that all relative paths in configFile will be assumed to be
+    # relative to
+    has 'rootPath' => (
+        is => 'ro',
+        default => sub {
+            return getcwd();
+        },
     );
 
     # Boolean, wether to embed config files into the generated shell script
@@ -122,7 +132,7 @@ package puconfigShellWriter
                 my $thisEntry = { %{$entry} };
 
                 $thisEntry->{source} = $sourcePart;
-                $thisEntry->{sourceAbsolute} = realpath($sourcePart);
+                $thisEntry->{sourceAbsolute} = $self->_realPath($sourcePart);
                 if ($sourcePart ne $source)
                 {
                     if ($thisEntry->{target} !~ m{/$})
@@ -162,6 +172,19 @@ package puconfigShellWriter
         $script .= __slurpAndFilter($self->_resolveShellFile('shell-footer.sh'));
 
         return $script;
+    }
+
+    # Finds the absolute path to a file
+    sub _realPath
+    {
+        my $self = shift;
+        my $file = shift;
+
+        if (!-e $self->rootPath.'/'.$file)
+        {
+            die('Failed to locate '.$file."\n");
+        }
+        return realpath($self->rootPath.'/'.$file);
     }
 
     # Wraps a block of shell script code in a method and returns a modified
@@ -587,6 +610,8 @@ sub usage
     say '   -v, --verbose   Increases verbosity, may be supplied multiple times';
     say '   -h, --help      Display this help screen and exit';
     say '       --batch     Disable SSH password prompts (if any) during deploy';
+    say '       --config .. Use the file supplied to this parameter as the config';
+    say '                   file instead of ./puconfig.yml';
     say '       --version   Output version information and exit';
     return 1;
 }
@@ -596,12 +621,31 @@ sub main
 {
     my $verbosity = 0;
     my $batchMode = 0;
+    my $configFile = './puconfig.yml';
+    my $configDir = getcwd();
+    my $origDirectory = getcwd();
 
     GetOptions (
         'verbose|v+' => \$verbosity,
         'version' => sub {
             say 'puconfig version '.$VERSION;
             exit(0);
+        },
+        'config=s' => sub {
+            shift;
+            $configFile = shift;
+            if (-d $configFile && -e $configFile.'/puconfig.yml')
+            {
+                say "$configFile: is a directory";
+                say 'Assuming you meant '.realpath($configFile.'/puconfig.yml');
+                $configFile .= '/puconfig.yml';
+            }
+            if (! -e $configFile)
+            {
+                die($configFile.': does not exist'."\n");
+            }
+            $configFile = realpath($configFile);
+            $configDir = dirname($configFile);
         },
         'batch' => \$batchMode,
         'help|h' => sub { usage(); exit 0; },
@@ -613,7 +657,9 @@ sub main
         my ($tmpfh,$file) = tempfile( 'puconfig-XXXXXXX', SUFFIX => '.sh', TMPDIR => 1, UNLINK => 1);
         my $builder = puconfigShellWriter->new(
             embed => 0,
-            outFile => $file
+            outFile => $file,
+            configFile => $configFile,
+            rootPath => $configDir,
         );
         $builder->writeShellScriptToFile;
         system('/bin/sh',$file);
@@ -622,7 +668,10 @@ sub main
     elsif ($command eq 'script')
     {
         my $builder = puconfigShellWriter->new(
-            embed => 1
+            embed => 1,
+            configFile => $configFile,
+            outFile => $origDirectory.'/puconfig.sh',
+            rootPath => $configDir,
         );
         $builder->writeShellScriptToFile();
         say 'Wrote script to '.$builder->outFile;
@@ -630,7 +679,9 @@ sub main
     elsif ($command eq 'deploy')
     {
         my $builder = puconfigShellWriter->new(
-            embed => 1
+            embed => 1,
+            configFile => $configFile,
+            rootPath => $configDir,
         );
         my $script = $builder->getShellScript();
 
@@ -643,7 +694,9 @@ sub main
     {
         my $builder = puconfigShellWriter->new(
             embed => 0,
-            outFile => 'puconfig-debug.sh'
+            configFile => $configFile,
+            outFile => $origDirectory.'/puconfig-debug.sh',
+            rootPath => $configDir,
         );
         $builder->writeShellScriptToFile();
         say 'Wrote a debugging script to '.$builder->outFile;

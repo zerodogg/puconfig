@@ -59,6 +59,11 @@ Show help and exit
 
 Disable ssh password prompts during deploy
 
+=item I<--config> B<FILE>
+
+Use B<FILE> as the config instead of ./puconfig.yml. File paths will be
+interperated relative to the directory containing FILE.
+
 =item I<--version>
 
 Output version information and exit.
