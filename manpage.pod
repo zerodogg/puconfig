@@ -148,6 +148,13 @@ B<setup> mode (it will still be copied in script or deploy mode).
 
 Example: I<hardlink: true>
 
+=item I<allowLocal> (optional, default false)
+
+If this is true then puconfig will allow local changes to be added to the file.
+If a TARGET.head or TARGET.tail file exists, then puconfig will act as if
+alwaysCopy is true, and append TARGET.head to the top of the file, and
+TARGET.tail to the end of the file, if one or both of those exist.
+
 =item I<scriptBefore> (optional)
 
 Script to run before installing a config. This will be executed once puconfig
