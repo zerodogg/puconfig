@@ -28,6 +28,12 @@ exit 1 # Not intended to be run directly
 # This is indicated with comments where the GPL-licensed code ends, and the
 # user-generated portion begins.
 
+# A note about API stability:
+# Variables and functions prefixed with _ are considered private. They
+# may change or disappear between releases, and thus should NOT be used
+# in *script blocks in your config. If you do use them, then your scripts
+# may break in interesting ways if you upgrade puconfig.
+
 # Output a message if PUCONFIG_SILENT != 1
 _echo ()
 {
