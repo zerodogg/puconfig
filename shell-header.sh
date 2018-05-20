@@ -191,7 +191,7 @@ _linkIntoTree ()
     if [ "$allowLocal" = "true" ]; then
         if [ -e "$target.tail" ] || [ -e "$target.head" ]; then
             _echo "Converted $target into a copy because of .head or .tail files"
-            _copyIntoTree "$src" "$target" "" "$allowLocal"
+            _copyIntoTree "$srcName" "$src" "$target" "" "$allowLocal"
             return $?
         fi
     fi
