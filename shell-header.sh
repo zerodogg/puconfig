@@ -142,7 +142,7 @@ _copyIntoTree ()
     if [ -e "$target" ] && [ -L "$target" ]; then
         rm -f "$target"
     fi
-    echo -n "" > "$target"
+    printf "" > "$target"
     if [ "$allowLocal" = "true" ] && [ -e "$target.head" ]; then
         cat "$target.head" >> "$target"
     fi
