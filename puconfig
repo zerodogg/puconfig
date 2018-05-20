@@ -559,6 +559,15 @@ sub main
             deployTo($host,$script);
         }
     }
+    elsif ($command eq 'debug-script')
+    {
+        my $builder = puconfigShellWriter->new(
+            embed => 0,
+            outFile => 'puconfig-debug.sh'
+        );
+        $builder->writeShellScriptToFile();
+        say 'Wrote a debugging script to '.$builder->outFile;
+    }
     elsif ($command eq '--version')
     {
         say 'puconfig version '.$VERSION;
