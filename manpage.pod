@@ -1,0 +1,332 @@
+=encoding utf8
+
+=head1 NAME
+
+puconfig - a program for deploying user configuration files accross several hosts
+
+=head1 SYNOPSIS
+
+B<puconfig> [I<COMMAND>]
+
+=head1 DESCRIPTION
+
+puconfig (portable user configs), is a program that assists in deploying user
+configs (ie. bashrc, ssh config, vimrc etc.) to many hosts.  It reads a config
+file, and then, depending on various settings, copies or symlinks the configs
+in place.
+
+It can also generate a redistributable shell script, that you can copy onto
+other machines and run to install your configs. Additionally it can automate
+this, and do the copying and running itself.
+
+=head1 COMMANDS
+
+=over
+
+=item B<setup>
+
+Set up this host according to the settings in puconfig.yml in the current
+directory.
+
+=item B<script>
+
+Generate a self-hosted shell-script that contains all your config files and
+your settings for how and when to install them. It reads puconfig.yml and
+writes puconfig.sh. That .sh embeds all of your configs, in addition to the
+logic on how to install them. The .sh only needs a working unix environment to
+run, and it should then be possible to simply copy it to any host and run it.
+
+=item B<deploy> I<host1> I<host2> ..
+
+Generates a self-hosted shell script, and then connects to each host specified
+via ssh and runs it.
+
+=back
+
+=head1 CONFIGURATION FORMAT
+
+At its core the configuration is a YAML file, and thus follows the normal YAML
+syntax.
+
+For a really quick introduction, see the I<EXAMPLE CONFIGURATION> section.
+
+The filename is I<puconfig.yml>, and should live along with your configs
+(though it can live anywhere if you are happy using absolute paths).
+
+The config files are symlinked by default when using B<setup>. When using
+B<script> or B<deploy> they are copied by default. Settings for each config can
+alter this behaviour.
+
+Note that B<all> conditions must match.
+
+At the root of the file, there are two keys, "files" and "aliases". The
+latter is optional, see the section on aliases for more information.
+
+=head1 files
+
+Each key under "files" is a the path to a file. This path is either absolute,
+or relative to the directory that puconfig.yml lives in.
+
+=head2 Basic example
+
+    files:
+        some.conf:
+            …
+
+=head2 Settings
+
+The following settings are available under each config.
+
+=over
+
+=item I<target> (B<required>)
+
+This should contain the path to where to write the config. ~ will be expanded
+to the current user's home directory.
+
+Example: I<target: ~/.some.conf>
+
+=item I<hosts> (condition, optional)
+
+A (YAML) list of hosts to install this config file on. If the current host does
+not match this hostname (substring match), then this config file will be
+skipped.
+
+Example: I<hosts: [ 'example', 'mydesktop' ]>
+
+=item I<notHosts> (condition, optional)
+
+A (YAML) list of hosts NOT to install this config on. If the current host matches
+this hostname (substring match), then this config will be skipped.
+
+Example: I<notHosts: [ 'mylaptop', 'myphone' ]>
+
+=item I<users> (condition, optional)
+
+A (YAML) list of users to install this config file on. If the current user does
+not match this username (substring match), then this config file will be
+skipped.
+
+Example: I<users: [ 'example', 'myuser' ]>
+
+=item I<notUsers> (condition, optional)
+
+A (YAML) list of users NOT to install this config on. If the current user matches
+this username (substring match), then this config will be skipped.
+
+Example: I<notUsers: [ 'guest', 'shared' ]>
+
+=item I<alwaysCopy> (optional, default false)
+
+Configs are symlinked by default when in B<setup> mode. This will make
+I<puconfig> make a copy instead.
+
+Example: I<alwaysCopy: true>
+
+=item I<chmod> (optional)
+
+Chmod the file to the specified mode after installing it.
+
+Example: I<chmod: 700>
+
+=item I<hardlink> (optional, default false)
+
+If this is true then the file will be hardlinked instead of symlinked when in
+B<setup> mode (it will still be copied in script or deploy mode).
+
+Example: I<hardlink: true>
+
+=item I<scriptBefore> (optional)
+
+Script to run before installing a config. This will be executed once puconfig
+has decided that the config should be installed, but a I<scriptBefore> can
+override this. To override it, you can "return", which will skip the file (and
+thus a scriptBefore block can function as a condition, if you want it to).
+
+Since scripts are usually a block, you should use the "|" syntax of YAML (see
+the example below).
+
+See B<SCRIPTING> for scripting syntax.
+
+Example (skips this file if ~/.some-directory does not exist):
+
+    scriptBefore: |
+        if [ ! -e ~/.some-directory ]; then
+            return
+        fi
+
+=item I<scriptAfter> (optional)
+
+Script to run after a config has been installed.
+
+Since scripts are usually a block, you should use the "|" syntax of YAML (see
+the example below).
+
+See B<SCRIPTING> for scripting syntax.
+
+Example:
+
+    scriptAfter: |
+        chmod 700 ~/.ssh
+
+=back
+
+=head1 aliases
+
+Aliases can be used similarly to variables in the config file. It lets you
+define something once in the config, and then reuse it elsewhere.
+
+To define an alias, add an entry under "aliases". To reference it, prefix it by "$"
+in a setting.
+
+Note that this currently has a limitation in that you can only use aliases in
+settings, they are not expanded inside settings. So: "hosts: $MY_HOSTS" is valid,
+while "hosts: [ $MY_HOSTS ]" is not.
+
+Example:
+
+    files:
+        some.conf:
+            hosts: $MY_HOSTS
+    aliases:
+        MY_HOSTS: [ 'host1', 'host2' ]
+
+=head1 SCRIPTING
+
+I<scriptBefore> and I<scriptAfter> blocks allow you to make additional
+customizations to conditions on when to install configs (scriptBefore) and add
+aditional actions once the config is installed (scriptAfter). The scripts are
+shell scripts, and you should avoid using bashisms since /bin/sh is used to run
+the script.
+
+In the blocks you have access to certain variables and functions that are part of
+the public puconfig API (note that functions from the shell-header.sh file are not
+considered public unless listed here, and should be avoided).
+
+=head2 Variables
+
+The following variables are available, as indicated, either only in I<scriptAfter> blocks, or both I<scriptBefore> and I<scriptAfter>.
+
+=over
+
+=item I<copyFile> (scriptAfter only)
+
+$copyFile is a boolean variable. It is "1" if the file will be copied, "0" otherwise.
+
+=item I<targetFile> (both scriptBefore and scriptAfter)
+
+This is the absolute path to the config file that is currently being written.
+
+=back
+
+=head2 Functions
+
+The following functions are available to both I<scriptBefore> and
+I<scriptBefore> blocks.
+
+=over
+
+=item I<hostname_match> host1 host2 ..
+
+This returns a shell true (0) if the current hostname matches ANY of the
+arguments provided to it.
+
+=item I<username_match> user1 user2 ..
+
+This returns a shell true (0) if the current username matches ANY of the
+arguments provided to it.
+
+=back
+
+=head1 EXAMPLE CONFIGURATION
+
+    files:
+        public/shell/bashrc:
+            target: ~/.bashrc
+            scriptAfter: |
+                if [ ! -e ~/.bash_profile ]; then
+                    echo "source ~/.bashrc" > ~/.bash_profile
+                fi
+        public/shell/bashrc_desktop:
+            target: ~/.bashrc_desktop
+            hosts: $Desktops
+        public/shell/shell_shared_termux:
+            target: ~/.shell_shared_termux
+            scriptBefore: |
+                if [ ! -e /data/data/com.termux/files/usr/bin/termux-info ]; then
+                    return
+                fi
+        forward:
+            alwaysCopy: true
+            target: ~/.forward
+            notHosts: ['n1','n2','n3','n4','n5']
+        gitignore:
+            target: ~/.gitignore
+            chmod: 600
+        gpg-agent.server.conf:
+            target: ~/.gnupg/gpg-agent.conf
+            hosts: serenity
+            notUsers: root
+            alwaysCopy: true
+            scriptAfter: |
+                if [ -x /usr/bin/pinentry-curses ]; then
+                    echo "# Auto-added by setup script" >> $targetFile
+                    echo "pinentry-program /usr/bin/pinentry-curses" >> $targetFile
+                fi
+        rclone.conf:
+            alwaysCopy: true
+            target: ~/.rclone.conf
+            chmod: 600
+            hosts: $Desktops
+            users:
+                - zerodogg
+                - eskild
+    aliases:
+        $Desktops: ['browncoats','firefly','wash','river','kaylee','jayne','zoe','whitefall','miranda']
+
+=head1 HELP/SUPPORT
+
+If you need additional help, please visit the website at
+L<http://random.zerodogg.org/puconfig>
+
+=head1 DEPENDENCIES
+
+The standalone scripts require nothing other than a working unix environment.
+
+The program itself needs perl, with several perl modules that are not in core:
+YAML::XS, String::ShellQuote, File::Temp, Moo, File::Basename
+
+=head1 BUGS AND LIMITATIONS
+
+If you find a bug, please report it at L<http://random.zerodogg.org/puconfig/bugs>
+
+=head1 AUTHOR
+
+B<GoldenPod> is written by Eskild Hustvedt I<<code aatt zerodogg d0t org>>
+
+=head1 FILES
+
+=over
+
+=item I<./puconfig.yml>
+
+The file containing the configuration.
+
+=back
+
+=head1 LICENSE AND COPYRIGHT
+
+Copyright (C) Eskild Hustvedt 2018
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see L<http://www.gnu.org/licenses/>.

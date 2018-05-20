@@ -1,0 +1,574 @@
+#!/usr/bin/perl
+# puconfig - a program for deploying user configuration files
+# Copyright (C) Eskild Hustvedt 2018
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+use 5.014;
+
+our $VERSION = 0.1;
+use File::Temp qw(tempfile);
+use File::Basename qw(basename);
+
+# This class builds a shell script from a puconfig.yml file.
+package puconfigShellWriter
+{
+    use YAML::XS qw(LoadFile);
+    use Cwd qw(realpath);
+    use File::Basename qw(dirname);
+    use String::ShellQuote qw(shell_quote);
+
+    use Moo;
+
+    # This is the parsed config. If this is not provided when the object is
+    # constructed, then it will load the config from the file at ->configFile
+    has 'config' => (
+        is => 'rw'
+    );
+
+    # The file to load the config from if a ->config attribute isn't provided
+    has 'configFile' => (
+        is => 'ro',
+        default => 'puconfig.yml'
+    );
+
+    # Boolean, wether to embed config files into the generated shell script
+    has 'embed' => (
+        is => 'rw',
+        default => sub { 0 }
+    );
+
+    # The file to write the config file to when writeShellScriptToFile() is called
+    has 'outFile' => (
+        is => 'ro',
+        default => sub {
+            'puconfig.sh'
+        }
+    );
+
+    # Private attribute containing the files structure from puconfig.yml
+    has '_files' => (
+        is => 'rw'
+    );
+
+    # Private attribute containing the vars structure from puconfig.yml
+    has '_aliases' => (
+        is => 'rw'
+    );
+
+    # Loads the config if needed and populates the _files and _aliases attributes
+    sub BUILD
+    {
+        my $self = shift;
+        if (!$self->config)
+        {
+            $self->config(
+                LoadFile(
+                    $self->configFile
+                )
+            );
+        }
+        $self->_files( $self->config->{files} );
+        $self->_aliases( $self->config->{aliases} );
+    }
+
+    # Write a complete shell script into ->outFile
+    sub writeShellScriptToFile
+    {
+        my $self = shift;
+        open(my $out,'>',$self->outFile) or die;
+        chmod(oct(700),$out);
+        print {$out} $self->getShellScript();
+        close($out);
+    }
+
+    # Return the shell script as a string.
+    # This is the main worker method that constructs our shell script.
+    sub getShellScript
+    {
+        my $self = shift;
+
+        my $script = '';
+        $script .= __slurpAndFilter($self->_resolveShellFile('shell-header.sh'));
+        my @functions;
+        $script .= "\n# ============================================================\n";
+        $script .= "# BEGIN GENERATED SOURCE\n";
+        $script .= "# This is NOT licensed under GPLv3 and is copyright the owner\n";
+        $script .= "# all rights reserved, unless otherwise specified\n";
+        $script .= "# ============================================================\n";
+        foreach my $source (sort keys %{$self->_files})
+        {
+            my $entry = $self->_files->{$source};
+            $entry->{source} = $source;
+            $entry->{sourceAbsolute} = realpath($source);
+            if (!-e $entry->{sourceAbsolute})
+            {
+                die($entry->{source}.': does not exist'."\n");
+            }
+            if (!defined $entry->{sourceAbsolute})
+            {
+                die('Failed to resolve the path to '.$source."\n");
+            }
+            my ($body,$name) = $self->_parseEntry($entry);
+            $script .= $body."\n";
+            push(@functions,$name);
+        }
+        $script .= "applyConfigs ()\n";
+        $script .= "{\n";
+        foreach my $func (@functions)
+        {
+            $script .= "\t$func\n";
+        }
+        $script .= "}\n";
+        $script .= "\n# ============================================================\n";
+        $script .= "# END GENERATED SOURCE\n";
+        $script .= "# ============================================================\n";
+        $script .= __slurpAndFilter($self->_resolveShellFile('shell-footer.sh'));
+
+        return $script;
+    }
+
+    # Wraps a block of shell script code in a method and returns a modified
+    # string which is constructed from the arguments.
+    #
+    # Usage: ($string, $functionName) =  obj->_wrapBlock(NAME, line1, line2, ..)
+    # NAME is a name to append to the function name
+    # The following parameters are strings which are concatenated together
+    # to construct the function body.
+    sub _wrapBlock
+    {
+        my $self = shift;
+        my $name = shift;
+        state $blockNo;
+        if (!$blockNo)
+        {
+            $blockNo = 0;
+        }
+        $blockNo++;
+        my $outBlock = '';
+        foreach my $l (@_)
+        {
+            $outBlock .= "\t".$l."\n";
+        }
+        my $confBlock = $name;
+        $confBlock =~ s/[^A-za-z0-9]//g;
+        $confBlock = '_pucApplyConfig_'.$blockNo.'_'.$confBlock;
+        return join("\n",
+            "\n# Block for $name",
+            "$confBlock ()\n{",$outBlock,"}",
+        ), $confBlock;
+    }
+
+    # Adds a statement that checks if the command before it succeeded or not.
+    # Forces our script to exit if it failed.
+    #
+    # Usage: $string = obj->_errorCheckBlock(ERROR)
+    # ERROR is a string to output if the command fails
+    sub _errorCheckBlock
+    {
+        my $self = shift;
+        my $error = shift;
+        return ('_checkCmdReturnValue "$?" '.shell_quote($error) );
+    }
+
+    # Adds a condition for the current config entry.
+    #
+    # Usage: $string = obj->_getMatchTest(FUNCTION, ACTION, ENTRIES?)
+    #
+    # FUNCTION is the shell script function that will be called.
+    # ACTION is the conditional (must_match or must_not_match).
+    # ENTRIES is either an arrayref or an array containing the various
+    # parameters that will be provided to FUNCTION
+    sub _getMatchTest
+    {
+        my $self = shift;
+        my $function = shift;
+        my $action = shift;
+        my $entries = shift;
+        if (!ref($entries))
+        {
+            $entries = [ $entries, @_ ];
+        }
+        my @content;
+
+        my @quoted;
+        foreach my $e (@{$entries})
+        {
+            push(@quoted, shell_quote($e));
+        }
+
+        if ($action eq 'must_match')
+        {
+            push(@content,'if ! '.$function.' '.join(" ",@quoted).';then',
+                "\t".'return 1',
+                'fi');
+        }
+        elsif ($action eq 'must_not_match')
+        {
+            push(@content,'if '.$function.' '.join(" ",@quoted).';then',
+                "\t".'return 1',
+                'fi');
+        }
+        else
+        {
+            die;
+        }
+        return @content;
+    }
+
+    # This constructs the copy/symlink/hardlink commands for a single file
+    #
+    # Usage: @strings = obj->_insertFile(ENTRY)
+    #
+    # ENTRY is a hashref containing a single entry from the files structure in
+    # the config file.
+    sub _insertFile
+    {
+        my $self = shift;
+        my $entry = shift;
+        my @content;
+        my $allowLocal;
+        my $linkType = '"symlink"';
+        if ($entry->{hardlink})
+        {
+            $linkType = '"hardlink"';
+        }
+        if ($entry->{allowLocal})
+        {
+            $allowLocal = shell_quote("true");
+        }
+        else
+        {
+            $allowLocal = shell_quote("false");
+        }
+        if ($self->embed)
+        {
+            push(@content,'_content='.shell_quote(__slurp($entry->{sourceAbsolute})));
+        }
+        else
+        {
+            push(@content,'_content=""');
+        }
+        if ($entry->{copyHosts})
+        {
+            push(@content,'copyFile=0');
+        }
+        push(@content,'mkdir -p '.__quotePath(dirname($entry->{target})));
+        push(@content,$self->_errorCheckBlock('Failed to mkdir content directory for '.$entry->{target}));
+        if ($entry->{copyHosts})
+        {
+            push(@content,'if hostname_match '.__quoteListForShell($self->_expandAliases($entry->{copyHosts})).'; then',
+                "\t".'copyFile=1',
+                'fi');
+        }
+        if ($entry->{alwaysCopy} || $self->embed)
+        {
+            push(@content,'copyFile=1');
+            push(@content,'_copyIntoTree '.join(' ',__quoteListForShell($entry->{source},$entry->{sourceAbsolute}),'"$targetFile"','"$_content"',$allowLocal));
+        }
+        elsif (!$entry->{copyHosts})
+        {
+            push(@content,'_linkIntoTree '.join(' ',__quoteListForShell($entry->{source},$entry->{sourceAbsolute}),'"$targetFile"',$allowLocal,$linkType))
+        }
+        else
+        {
+            push(@content,
+                'if [ "$copyFile" = "1" ]; then',
+                "\t".'_copyIntoTree '.join(' ',__quoteListForShell($entry->{source},$entry->{sourceAbsolute}),'"$targetFile"','"$_content"',$allowLocal),
+                'else',
+                "\t". '_linkIntoTree '.join(' ',__quoteListForShell($entry->{source},$entry->{sourceAbsolute}),'"$targetFile"',$allowLocal,$linkType),
+                'fi'
+            );
+        }
+        return @content;
+    }
+
+    # This expands aliases in a string
+    # Usage: $newString = obj->_expandAliases($oldString)
+    sub _expandAliases
+    {
+        my $self = shift;
+        my $entry = shift;
+        if(ref($entry))
+        {
+            return $entry;
+        }
+        else
+        {
+            if ($entry =~ /^\$/)
+            {
+                if (!defined $self->_aliases->{$entry})
+                {
+                    warn('Warning: Undefined variable: '.$entry."\n");
+                }
+                return $self->_aliases->{$entry};
+            }
+            return $entry;
+        }
+    }
+
+    # Builds a complete function block for a single entry
+    # Returns the same as _wrapBlock
+    #
+    # Usage: obj->_parseEntry($entry)
+    sub _parseEntry
+    {
+        my $self = shift;
+        my $entry = shift;
+        my @content;
+
+        if (!$entry->{target})
+        {
+            die("Missing target entry for ".$entry->{source}."\n");
+        }
+
+        push(@content,'targetFile='.__quotePath($entry->{target}));
+        if ($entry->{hosts})
+        {
+            push(@content, $self->_getMatchTest('hostname_match', 'must_match', $self->_expandAliases($entry->{hosts})));
+        }
+        if ($entry->{users})
+        {
+            push(@content, $self->_getMatchTest('username_match', 'must_match', $self->_expandAliases($entry->{users})));
+        }
+        if ($entry->{notHosts})
+        {
+            push(@content, $self->_getMatchTest('hostname_match', 'must_not_match', $self->_expandAliases($entry->{notHosts})));
+        }
+        if ($entry->{notUsers})
+        {
+            push(@content, $self->_getMatchTest('hostname_match', 'must_not_match', $self->_expandAliases($entry->{notUsers})));
+        }
+        if ($entry->{scriptBefore})
+        {
+            push(@content,split("\n",$entry->{scriptBefore}));
+        }
+        push(@content, $self->_insertFile($entry));
+        if ($entry->{chmod})
+        {
+            push(@content, 'chmod '.__quotePath($entry->{chmod}).' "$targetFile"');
+        }
+        if ($entry->{scriptAfter})
+        {
+            push(@content,split("\n",$entry->{scriptAfter}));
+        }
+        return $self->_wrapBlock($entry->{source},@content);
+    }
+
+    # Resolve the path to one of our shell script files
+    # Usage: absolutePath = obj->_resolveShellFile(file)
+    sub _resolveShellFile
+    {
+        my $self = shift;
+        my $file = shift;
+        return dirname(realpath($0)).'/'.$file;
+    }
+
+    # ===
+    # Helper functions
+    #
+    # These should never be called as methods
+    # ===
+
+    # Reads a single file and returns it as a string
+    sub __slurp
+    {
+        my $file = shift;
+        if (!defined $file)
+        {
+            die('__slurp called without any $file');
+        }
+        local $/ = undef;
+        open(my $in,'<',$file) or die("Failed to open $file for reading: $!\n");
+        my $return = <$in>;
+        close($in);
+        return $return;
+    }
+
+    # __slurp's a file and then replaces {{puconfig_version}} and omits lines
+    # beginning with ##
+    sub __slurpAndFilter
+    {
+        my $file = shift;
+        my $content = __slurp($file);
+        my $result = '';
+        my $no = 0;
+        foreach my $line (split("\n",$content))
+        {
+            $no++;
+            if ($no == 1)
+            {
+                next;
+            }
+            if ($line =~ /^##/)
+            {
+                next;
+            }
+            $line =~ s/\{\{puconfig_version\}\}/$VERSION/;
+            $result .= $line."\n";
+        }
+        return $result;
+    }
+
+    # Quotes a path for shell, preserving ~ outside the quotes
+    sub __quotePath
+    {
+        my $string = shift;
+        if(ref($string))
+        {
+            die("quoteForShell appears to have been run as a method");
+        }
+        if ($string =~ s/^~\/?//)
+        {
+            $string = '~/'.shell_quote($string);
+        }
+        else
+        {
+            $string = shell_quote($string);
+        }
+        return $string;
+    }
+
+    # Runs shell_quote on each parameter provided and then returns allof the
+    # newly shell_quoted parameters in the same order
+    sub __quoteListForShell
+    {
+        if(ref($_[0]))
+        {
+            die("__quoteListForShell appears to have been run as a method");
+        }
+        my @list;
+        foreach my $entry (@_)
+        {
+            push(@list,shell_quote($entry));
+        }
+        return @list;
+    }
+
+}
+
+# Purpose: Run a system() in a child (silencing it without using /bin/sh)
+# Usage: SilentSystem(OPTIONS);
+#  OPTIONS are identical to system();
+sub SilentSystem
+{
+	no warnings;
+	open(STDOUT_SAVED,'>&STDOUT');
+	open(STDERR_SAVED,'>&STDERR');
+	open(STDOUT,'>','/dev/null');
+	open(STDERR,'>','/dev/null');
+	my $ret = system(@_);
+	$ret = $ret >> 8;
+	open(STDOUT,'>&STDOUT_SAVED');
+	open(STDERR,'>&STDERR_SAVED');
+	use warnings;
+	return($ret);
+}
+
+# Deploys confis to a single host
+sub deployTo
+{
+    my $host = shift;
+    my $script = shift;
+
+    my @ssh = qw(ssh -o ForwardX11=no -o ForwardAgent=no -o ConnectTimeout=10);
+
+    $| = 1;
+
+	print "$host: ";
+	print "Checking... ";
+
+    if ( SilentSystem(@ssh,$host,'exit 132') != 132)
+    {
+        print "offline\n";
+        return;
+    }
+
+    print "online. Writing configs...";
+
+    open(my $out,'|-',@ssh,$host,'env PUCONFIG_SILENT=1 sh');
+    print {$out} $script;
+    close($out);
+
+    print "done\n";
+}
+
+# Outputs our usage information
+sub usage
+{
+    say "";
+    say 'Usage: '.basename($0).' [command]';
+    say "";
+    say "Where [command] is one of:";
+    say "   setup     - Installs config files to the current host";
+    say "   script    - Writes a self-contained script that can be copied to other hosts";
+    say "               and be run there to install the config files";
+    say "   deploy X  - Deploy configs to X via ssh, where X is a list of hosts";
+}
+
+# Our main function, performs command-line handling
+sub main
+{
+    my $command = shift(@ARGV);
+    if ($command eq 'setup')
+    {
+        my ($tmpfh,$file) = tempfile( 'puconfig-XXXXXXX', SUFFIX => '.sh', TMPDIR => 1, UNLINK => 1);
+        my $builder = puconfigShellWriter->new(
+            embed => 0,
+            outFile => $file
+        );
+        $builder->writeShellScriptToFile;
+        system('/bin/sh',$file);
+        close($tmpfh);
+    }
+    elsif ($command eq 'script')
+    {
+        my $builder = puconfigShellWriter->new(
+            embed => 1
+        );
+        $builder->writeShellScriptToFile();
+        say 'Wrote script to '.$builder->outFile;
+    }
+    elsif ($command eq 'deploy')
+    {
+        my $builder = puconfigShellWriter->new(
+            embed => 1
+        );
+        my $script = $builder->getShellScript();
+
+        foreach my $host (@ARGV)
+        {
+            deployTo($host,$script);
+        }
+    }
+    elsif ($command eq '--version')
+    {
+        say 'puconfig version '.$VERSION;
+        exit(0);
+    }
+    else
+    {
+        usage();
+        if (!defined $command)
+        {
+            exit(0);
+        }
+        else
+        {
+            exit(1);
+        }
+    }
+}
+
+main();
