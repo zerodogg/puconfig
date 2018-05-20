@@ -196,8 +196,16 @@ _linkIntoTree ()
 	linkArrow="=~"
 	_validatePath "$target"
 	if [ "$allowLocal" = "true" ]; then
-		if [ -e "$target.tail" ] || [ -e "$target.head" ]; then
-			_echo "Converted $target into a copy because of .head or .tail files"
+		_reason=""
+		if [ -e "$target.tail" ] && [ -e "$target.head" ]; then
+			_reason=".head and .tail files"
+		elif [ -e "$target.tail" ]; then
+			_reason="a .head-file"
+		elif [ -e "$target.head" ]; then
+			_reason="a .head-file"
+		fi
+		if [ "x$_reason" != "x" ]; then
+			_echo "Converted $target into a copy because of $_reason"
 			_copyIntoTree "$srcName" "$src" "$target" "" "$allowLocal"
 			return $?
 		fi
