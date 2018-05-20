@@ -43,7 +43,7 @@ _hostname ()
         echo "$HOST"
     elif [ "x$HOSTNAME" != "x" ]; then
         echo "$HOSTNAME"
-    elif which hostname  > /dev/null 2>&1; then
+    elif _has_command hostname; then
         hostname -f
     elif _has_perl_module "Sys::Hostname"; then
         perl -e "use Sys::Hostname qw(hostname); print hostname;"
@@ -69,9 +69,9 @@ _username ()
         echo "$USER"
     elif [ "x$USERNAME" != "x" ]; then
         echo "$USERNAME"
-    elif which whoami  > /dev/null 2>&1; then
+    elif _has_command whoami; then
         whoami
-    elif which id >/dev/null 2>&1; then
+    elif _has_command id; then
         id -un
     elif _has_perl_module "POSIX"; then
         perl -e "use POSIX qw(cuserid); print cuserid;"
@@ -107,10 +107,17 @@ _string_match ()
 # Checks if perl is installed and a certain module available
 _has_perl_module ()
 {
-    if ! which perl  > /dev/null 2>&1; then
+    if ! _has_command perl; then
         return 1
     fi
     perl -e 'use($ARGV[0]) or die'  > /dev/null 2>&1
+    return $?
+}
+
+# Checks if a command is available, silently
+_has_command ()
+{
+    which "$1" >/dev/null 2>&1
     return $?
 }
 
