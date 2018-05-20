@@ -652,6 +652,50 @@ sub main
     ) or die 'Run ', basename($0), " --help for help\n";
 
     my $command = shift(@ARGV) // '';
+
+    if (!-e $configFile && defined $command)
+    {
+        my $home = dirname(realpath($0));
+        my $command;
+
+        # The default is to use the POD
+        if (-e $home.'/manpage.pod')
+        {
+            $command = 'perldoc '.$home.'/manpage.pod';
+        }
+        # If a manpage has been built, use that
+        elsif(-e $home.'/puconfig.1')
+        {
+            $command = 'man '.$home.'/puconfig.1';
+        }
+        # Assume, if we're not writeable, that we're installed system-wide, and
+        # thus that the manpage has been installed too.
+        #
+        # Also do some (stupid) checks for if the manpage has been installed.
+        elsif(
+            (!-w $home.'/'.basename($0)) ||
+            (-e $ENV{HOME}.'/.local/share/man/man1/puconfig.1' || -e '/usr/share/man/man1/puconfig.1')
+        )
+        {
+            $command = 'man puconfig';
+        }
+        # Finally, fall back to using the embedded POD. This only exists in
+        # release builds, but if neither of the above are true AND this isn't
+        # a release build - then the user has seriously messed up their install.
+        else
+        {
+            $command = 'perldoc '.$home.'/puconfig';
+        }
+
+        die(
+            $configFile.': does not exist'."\n".
+            'If you have already configured puconfig, you must first cd to the directory that'."\n".
+            'the config file resides in, or supply a --config explicitly.'."\n\n".
+            'If you have not configured it yet, you may find instructions on how to configure'."\n".
+            'it by running: '.$command."\n"
+        );
+    }
+
     if ($command eq 'setup')
     {
         my ($tmpfh,$file) = tempfile( 'puconfig-XXXXXXX', SUFFIX => '.sh', TMPDIR => 1, UNLINK => 1);
