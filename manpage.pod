@@ -6,7 +6,7 @@ puconfig - a program for deploying user configuration files accross several host
 
 =head1 SYNOPSIS
 
-B<puconfig> [I<COMMAND>]
+B<puconfig> [I<COMMAND>] [I<OPTIONS?>]
 
 =head1 DESCRIPTION
 
@@ -40,6 +40,24 @@ run, and it should then be possible to simply copy it to any host and run it.
 
 Generates a self-hosted shell script, and then connects to each host specified
 via ssh and runs it.
+
+=back
+
+=head1 OPTIONS
+
+=over
+
+=item I<-v, --verbose>
+
+Increases verbosity. For "deploy" it disables "silent" mode of the script.
+
+=item I<-h, --help>
+
+Show help and exit
+
+=item I<--version>
+
+Output version information and exit.
 
 =back
 

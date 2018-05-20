@@ -20,6 +20,7 @@ use 5.014;
 our $VERSION = 0.1;
 use File::Temp qw(tempfile);
 use File::Basename qw(basename);
+use Getopt::Long;
 
 # This class builds a shell script from a puconfig.yml file.
 package puconfigShellWriter
@@ -522,6 +523,7 @@ sub deployTo
 {
     my $host = shift;
     my $script = shift;
+    my $verbosity = shift;
 
     my @ssh = qw(ssh -o ForwardX11=no -o ForwardAgent=no -o ConnectTimeout=10);
 
@@ -536,31 +538,60 @@ sub deployTo
         return;
     }
 
-    print "online. Writing configs...";
+    print "online. Writing configs";
 
-    open(my $out,'|-',@ssh,$host,'PUCONFIG_SILENT=1 sh');
+    my $silence = 1;
+    if ($verbosity)
+    {
+        say ":";
+        $silence = 0;
+    }
+    else
+    {
+        print "...";
+    }
+
+    open(my $out,'|-',@ssh,$host,'PUCONFIG_SILENT='.$silence.' sh');
     print {$out} $script;
     close($out);
 
-    print "done\n";
+    if (!$verbosity)
+    {
+        print "done\n";
+    }
 }
 
 # Outputs our usage information
 sub usage
 {
     say "";
-    say 'Usage: '.basename($0).' [command]';
+    say 'Usage: '.basename($0).' [command] [options?]';
     say "";
     say "Where [command] is one of:";
-    say "   setup     - Installs config files to the current host";
-    say "   script    - Writes a self-contained script that can be copied to other hosts";
-    say "               and be run there to install the config files";
-    say "   deploy X  - Deploy configs to X via ssh, where X is a list of hosts";
+    say "   setup           Installs config files to the current host";
+    say "   script          Writes a self-contained script that can be copied to other hosts";
+    say "                   and be run there to install the config files";
+    say "   deploy X        Deploy configs to X via ssh, where X is a list of hosts";
+    say "";
+    say "And [options?] can, optionally, be zero or more of:";
+    say "   -v, --verbose   Increases verbosity, may be supplied multiple times";
+    say "   -h, --help      Display this help screen and exit";
+    say "       --version   Output version information and exit";
 }
 
 # Our main function, performs command-line handling
 sub main
 {
+    my $verbosity = 0;
+    GetOptions (
+        'verbose|v+' => \$verbosity,
+        'version' => sub {
+            say 'puconfig version '.$VERSION;
+            exit(0);
+        },
+        'help|h' => sub { usage(); exit 0; },
+    ) or die 'Run ', basename($0), " --help for help\n";
+
     my $command = shift(@ARGV);
     if ($command eq 'setup')
     {
@@ -590,7 +621,7 @@ sub main
 
         foreach my $host (@ARGV)
         {
-            deployTo($host,$script);
+            deployTo($host,$script, $verbosity);
         }
     }
     elsif ($command eq 'debug-script')
@@ -602,22 +633,10 @@ sub main
         $builder->writeShellScriptToFile();
         say 'Wrote a debugging script to '.$builder->outFile;
     }
-    elsif ($command eq '--version')
-    {
-        say 'puconfig version '.$VERSION;
-        exit(0);
-    }
     else
     {
         usage();
-        if (!defined $command)
-        {
-            exit(0);
-        }
-        else
-        {
-            exit(1);
-        }
+        exit(1);
     }
 }
 
