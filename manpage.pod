@@ -55,6 +55,10 @@ Increases verbosity. For "deploy" it disables "silent" mode of the script.
 
 Show help and exit
 
+=item I<--batch>
+
+Disable ssh password prompts during deploy
+
 =item I<--version>
 
 Output version information and exit.

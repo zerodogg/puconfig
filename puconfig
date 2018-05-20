@@ -527,8 +527,14 @@ sub deployTo
     my $host = shift;
     my $script = shift;
     my $verbosity = shift;
+    my $batch = shift;
 
     my @ssh = qw(ssh -o ForwardX11=no -o ForwardAgent=no -o ConnectTimeout=10);
+
+    if ($batch)
+    {
+        push(@ssh,'-oBatchMode=yes');
+    }
 
     $| = 1;
 
@@ -580,6 +586,7 @@ sub usage
     say 'And [options?] can, optionally, be zero or more of:';
     say '   -v, --verbose   Increases verbosity, may be supplied multiple times';
     say '   -h, --help      Display this help screen and exit';
+    say '       --batch     Disable SSH password prompts (if any) during deploy';
     say '       --version   Output version information and exit';
     return 1;
 }
@@ -588,12 +595,15 @@ sub usage
 sub main
 {
     my $verbosity = 0;
+    my $batchMode = 0;
+
     GetOptions (
         'verbose|v+' => \$verbosity,
         'version' => sub {
             say 'puconfig version '.$VERSION;
             exit(0);
         },
+        'batch' => \$batchMode,
         'help|h' => sub { usage(); exit 0; },
     ) or die 'Run ', basename($0), " --help for help\n";
 
@@ -626,7 +636,7 @@ sub main
 
         foreach my $host (@ARGV)
         {
-            deployTo($host,$script, $verbosity);
+            deployTo($host,$script, $verbosity, $batchMode);
         }
     }
     elsif ($command eq 'debug-script')
