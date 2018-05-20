@@ -20,7 +20,7 @@ BINDIR ?= $(prefix)/bin
 DATADIR ?= $(prefix)/share
 
 # Note: manpage.pod gets build into puconfig.1 and embedded into puconfig itself for dists
-DISTFILES = cpanfile Makefile puconfig README.md shell-footer.sh shell-header.sh puconfig.1
+DISTFILES = cpanfile Makefile puconfig README.md shell-footer.sh shell-header.sh puconfig.1 example
 
 # Install puconfig
 install: puconfig.1
@@ -43,6 +43,7 @@ clean:
 	rm -f puconfig-*.tar.bz2
 	rm -rf puconfig-$(VERSION)
 	rm -f puconfig.1
+	rm -rf /tmp/puconfig.test
 # Verify syntax
 test:
 	@perl -c puconfig
