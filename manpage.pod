@@ -123,6 +123,13 @@ I<puconfig> make a copy instead.
 
 Example: I<alwaysCopy: true>
 
+=item I<removeIfSkipped> (optional, default false)
+
+If this is set to true then "target" gets "rm -f"ed if the conditions for
+this entry is not matched.
+
+Example: I<removeIfSkipped: true>
+
 =item I<chmod> (optional)
 
 Chmod the file to the specified mode after installing it.

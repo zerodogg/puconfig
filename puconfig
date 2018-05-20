@@ -360,7 +360,20 @@ package puconfigShellWriter
             push(@content,split("\n",$script));
             push(@content,'fi');
         }
-        push(@content,'if [ "$skip" != "0" ]; then',"\t".'return 1','fi');
+
+        push(@content,'if [ "$skip" != "0" ]; then');
+        if ($entry->{removeIfSkipped})
+        {
+            push(@content,
+                "\t".'if [ -e "$targetFile" ]; then',
+                "\t\t".'rm -f "$targetFile"',
+                "\t\t".'_echo " Removed: $targetFile"',
+                "\t".'fi'
+            );
+
+        }
+        push(@content,"\t".'return 1','fi');
+
         push(@content, $self->_insertFile($entry));
         if ($entry->{chmod})
         {
