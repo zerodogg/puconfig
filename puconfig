@@ -210,14 +210,14 @@ package puconfigShellWriter
 
         if ($action eq 'must_match')
         {
-            push(@content,'if ! '.$function.' '.join(" ",@quoted).';then',
-                "\t".'return 1',
+            push(@content,'if [ "$skip" = "0" ] && ! '.$function.' '.join(" ",@quoted).';then',
+                "\t".'skip=1',
                 'fi');
         }
         elsif ($action eq 'must_not_match')
         {
-            push(@content,'if '.$function.' '.join(" ",@quoted).';then',
-                "\t".'return 1',
+            push(@content,'if [ "$skip" = "0" ] && '.$function.' '.join(" ",@quoted).';then',
+                "\t".'skip=1',
                 'fi');
         }
         else
@@ -334,6 +334,7 @@ package puconfigShellWriter
         }
 
         push(@content,'targetFile='.__quotePath($entry->{target}));
+        push(@content,'skip=0');
         if ($entry->{hosts})
         {
             push(@content, $self->_getMatchTest('hostname_match', 'must_match', $self->_expandAliases($entry->{hosts})));
@@ -352,8 +353,14 @@ package puconfigShellWriter
         }
         if ($entry->{scriptBefore})
         {
-            push(@content,split("\n",$entry->{scriptBefore}));
+            # Runs scriptBefore if skip is not already 1
+            push(@content,'if [ "$skip" = "0" ]; then');
+            my $script = $entry->{scriptBefore};
+            $script =~ s/^/\t/mg;
+            push(@content,split("\n",$script));
+            push(@content,'fi');
         }
+        push(@content,'if [ "$skip" != "0" ]; then',"\t".'return 1','fi');
         push(@content, $self->_insertFile($entry));
         if ($entry->{chmod})
         {
