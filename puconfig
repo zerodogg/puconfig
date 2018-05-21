@@ -407,7 +407,7 @@ package puconfigShellWriter
         }
         if ($entry->{notUsers})
         {
-            push(@content, $self->_getMatchTest('hostname_match', 'must_not_match', $self->_expandAliases($entry->{notUsers})));
+            push(@content, $self->_getMatchTest('username_match', 'must_not_match', $self->_expandAliases($entry->{notUsers})));
         }
         if ($entry->{scriptBefore})
         {
