@@ -163,6 +163,8 @@ _copyIntoTree ()
 	content="$4"
 	allowLocal="$5"
 	_validatePath "$target"
+	_msgPrefix=""
+	_msgPostfix=""
 	if [ -e "$target" ] && [ -L "$target" ]; then
 		rm -f "$target"
 	fi
@@ -173,6 +175,7 @@ _copyIntoTree ()
 	printf "" > "$target"
 	if [ "$allowLocal" = "true" ] && [ -e "$target.head" ]; then
 		cat "$target.head" >> "$target"
+		_msgPrefix="[+.head] "
 	fi
 	if [ "x$content" = "x" ]; then
 		cat "$src" >> "$target"
@@ -181,8 +184,9 @@ _copyIntoTree ()
 	fi
 	if [ "$allowLocal" = "true" ] && [ -e "$target.tail" ]; then
 		cat "$target.tail" >> "$target"
+		_msgPostfix=" [+.tail]"
 	fi
-	_echo " $srcName => $target"
+	_echo " $srcName => $_msgPrefix$target$_msgPostfix"
 }
 
 # Symlinks a file into place.
