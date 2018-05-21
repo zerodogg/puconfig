@@ -92,6 +92,16 @@ package puconfigShellWriter
                 )
             );
         }
+        if (!defined $self->config->{version})
+        {
+            die($self->configFile.': missing "version:" statement'."\n");
+        }
+        if ( int($self->config->{version}) != 1)
+        {
+            die($self->configFile.': is version '.$self->config->{version}."\n".
+                'This version of puconfig only supports config version 1.'."\n".
+                'You should upgrade puconfig.'."\n");
+        }
         $self->_files( $self->config->{files} );
         $self->_aliases( $self->config->{aliases} );
     }

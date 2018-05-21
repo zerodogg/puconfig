@@ -86,8 +86,11 @@ alter this behaviour.
 
 Note that B<all> conditions must match.
 
-At the root of the file, there are two keys, "files" and "aliases". The
-latter is optional, see the section on aliases for more information.
+At the root of the file, there are three keys, "version", "files" and
+"aliases". The latter is optional, see the section on aliases for more
+information. "version" is just a single number, which declares the version
+of the config format the file is. For the version described in this file,
+it should be 1.
 
 =head1 files
 
@@ -232,6 +235,7 @@ while "hosts: [ $MY_HOSTS ]" is not.
 
 Example:
 
+    version: 1
     files:
         some.conf:
             hosts: $MY_HOSTS
@@ -292,6 +296,7 @@ arguments provided to it.
 
 =head1 EXAMPLE CONFIGURATION
 
+    version: 1
     files:
         public/shell/bashrc:
             target: ~/.bashrc
