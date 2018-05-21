@@ -667,17 +667,17 @@ sub main
     if (!-e $configFile && defined $command)
     {
         my $home = dirname(realpath($0));
-        my $command;
+        my $manCommand;
 
         # The default is to use the POD
         if (-e $home.'/manpage.pod')
         {
-            $command = 'perldoc '.$home.'/manpage.pod';
+            $manCommand = 'perldoc '.$home.'/manpage.pod';
         }
         # If a manpage has been built, use that
         elsif(-e $home.'/puconfig.1')
         {
-            $command = 'man '.$home.'/puconfig.1';
+            $manCommand = 'man '.$home.'/puconfig.1';
         }
         # Assume, if we're not writeable, that we're installed system-wide, and
         # thus that the manpage has been installed too.
@@ -688,14 +688,14 @@ sub main
             (-e $ENV{HOME}.'/.local/share/man/man1/puconfig.1' || -e '/usr/share/man/man1/puconfig.1')
         )
         {
-            $command = 'man puconfig';
+            $manCommand = 'man puconfig';
         }
         # Finally, fall back to using the embedded POD. This only exists in
         # release builds, but if neither of the above are true AND this isn't
         # a release build - then the user has seriously messed up their install.
         else
         {
-            $command = 'perldoc '.$home.'/puconfig';
+            $manCommand = 'perldoc '.$home.'/puconfig';
         }
 
         die(
@@ -703,7 +703,7 @@ sub main
             'If you have already configured puconfig, you must first cd to the directory that'."\n".
             'the config file resides in, or supply a --config explicitly.'."\n\n".
             'If you have not configured it yet, you may find instructions on how to configure'."\n".
-            'it by running: '.$command."\n"
+            'it by running: '.$manCommand."\n"
         );
     }
 
