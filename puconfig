@@ -192,7 +192,7 @@ package puconfigShellWriter
 
         if (!-e $self->rootPath.'/'.$file)
         {
-            die('Failed to locate '.$file."\n");
+            die($file.': does not exist'."\n");
         }
         return realpath($self->rootPath.'/'.$file);
     }
