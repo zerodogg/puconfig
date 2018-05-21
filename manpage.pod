@@ -158,6 +158,14 @@ I<puconfig> make a copy instead.
 
 Example: I<alwaysCopy: true>
 
+=item I<copyHosts> (optional)
+
+Configs are symlinked by default when in B<setup> mode. This will make
+I<puconfig> make a copy if the current hostname matches any of the provided
+hosts (substring match).
+
+Example: I<copyHosts: [ 'mylaptop', 'myphone' ]>
+
 =item I<removeIfSkipped> (optional, default false)
 
 If this is set to true then "target" gets "rm -f"ed if the conditions for
