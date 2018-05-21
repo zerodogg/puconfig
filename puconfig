@@ -32,6 +32,7 @@ package puconfigShellWriter
     use Cwd qw(realpath getcwd);
     use File::Basename qw(dirname basename);
     use String::ShellQuote qw(shell_quote);
+    use List::Util qw(any);
 
     use Moo;
 
@@ -391,6 +392,8 @@ package puconfigShellWriter
             die('Missing target entry for '.$entry->{source}."\n");
         }
 
+        $self->_verifyContentKeys($entry);
+
         push(@content,'targetFile='.__quotePath($entry->{target}));
         push(@content,'skip=0');
         if ($entry->{hosts})
@@ -451,6 +454,25 @@ package puconfigShellWriter
         my $self = shift;
         my $file = shift;
         return dirname(realpath($0)).'/'.$file;
+    }
+
+    # Enumerates the keys for an entry and warns the user about unknown ones
+    # Usage: obj->_verifyContentKeys(entry)
+    sub _verifyContentKeys
+    {
+        my $self = shift;
+        my $entry = shift;
+
+        my @knownKeys = qw(target hosts notHosts users notUsers alwaysCopy removeIfSkipped chmod hardlink allowLocal scriptBefore scriptAfter source sourceAbsolute copyHosts);
+
+        foreach my $key (keys %{$entry})
+        {
+            if ( ! (any { $key eq $_ } @knownKeys))
+            {
+                warn('Unknown setting for '.$entry->{source}.': '.$key.' - ignoring'."\n");
+            }
+        }
+        return;
     }
 
     # ===
