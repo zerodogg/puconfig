@@ -531,7 +531,14 @@ package puconfigShellWriter
         }
         if ($string =~ s/^~\/?//)
         {
-            $string = '~/'.shell_quote($string);
+            if(length($string))
+            {
+                $string = '~/'.shell_quote($string);
+            }
+            else
+            {
+                $string = '~/';
+            }
         }
         else
         {
