@@ -204,7 +204,7 @@ _linkIntoTree ()
 		if [ -e "$target.tail" ] && [ -e "$target.head" ]; then
 			_reason=".head and .tail files"
 		elif [ -e "$target.tail" ]; then
-			_reason="a .head-file"
+			_reason="a .tail-file"
 		elif [ -e "$target.head" ]; then
 			_reason="a .head-file"
 		fi
