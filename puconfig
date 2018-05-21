@@ -481,11 +481,11 @@ package puconfigShellWriter
         my $file = shift;
         my $content = __slurp($file);
         my $result = '';
-        my $no = 0;
+        my $lineNo = 0;
         foreach my $line (split("\n",$content))
         {
-            $no++;
-            if ($no == 1)
+            $lineNo++;
+            if ($lineNo == 1)
             {
                 next;
             }
