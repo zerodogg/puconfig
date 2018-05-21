@@ -541,6 +541,7 @@ package puconfigShellWriter
 #  OPTIONS are identical to system();
 sub SilentSystem
 {
+    ## no critic qw(InputOutput::ProhibitBarewordFileHandles InputOutput::ProhibitTwoArgOpen InputOutput::RequireCheckedOpen)
 	no warnings;
 	open(STDOUT_SAVED,'>&STDOUT');
 	open(STDERR_SAVED,'>&STDERR');
