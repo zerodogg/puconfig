@@ -166,6 +166,10 @@ _copyIntoTree ()
 	if [ -e "$target" ] && [ -L "$target" ]; then
 		rm -f "$target"
 	fi
+	if [ "x$content" = "x" ] && [ ! -e "$src" ]; then
+		echo "Fatal: $src: does not exist"
+		exit 1
+	fi
 	printf "" > "$target"
 	if [ "$allowLocal" = "true" ] && [ -e "$target.head" ]; then
 		cat "$target.head" >> "$target"
@@ -209,6 +213,10 @@ _linkIntoTree ()
 			_copyIntoTree "$srcName" "$src" "$target" "" "$allowLocal"
 			return $?
 		fi
+	fi
+	if [ ! -e "$src" ]; then
+		echo "Fatal: $src: does not exist"
+		exit 1
 	fi
 	if [ "$linkType" = "hardlink" ]; then
 		ln -f "$src" "$target"
