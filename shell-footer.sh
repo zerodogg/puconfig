@@ -36,3 +36,4 @@ done
 
 # Install the configs
 applyConfigs
+exit 0
