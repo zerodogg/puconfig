@@ -82,10 +82,27 @@ _username ()
 		id -un
 	elif _has_perl_module "POSIX"; then
 		perl -e "use POSIX qw(cuserid); print cuserid;"
-	elif [ "x$UID" != "x" ]; then
-		echo "unknownuser-$UID"
 	else
-		echo "unknownuser"
+		_uid="`_uid`"
+		if [ "x$_uid" != "xunknownuid" ]; then
+			echo "unknownuser-$_uid"
+		else
+			echo "unknownuser"
+		fi
+	fi
+}
+
+# Try hard to get a UID
+_uid ()
+{
+	if [ "x$UID" != "x" ]; then
+		echo "$UID"
+	elif _has_command id; then
+		id -u
+	elif _has_command perl; then
+		perl -e 'print $<'
+	else
+		echo "unknownuid"
 	fi
 }
 
@@ -202,21 +219,35 @@ _linkIntoTree ()
 	allowLocal="$4"
 	linkType="$5"
 	linkArrow="=~"
+	_reason=""
 	_validatePath "$target"
 	if [ "$allowLocal" = "true" ]; then
-		_reason=""
 		if [ -e "$target.tail" ] && [ -e "$target.head" ]; then
-			_reason=".head and .tail files"
+			_reason="of .head and .tail files"
 		elif [ -e "$target.tail" ]; then
-			_reason="a .tail-file"
+			_reason="of a .tail-file"
 		elif [ -e "$target.head" ]; then
-			_reason="a .head-file"
+			_reason="of a .head-file"
 		fi
-		if [ "x$_reason" != "x" ]; then
-			_echo "Converted $target into a copy because of $_reason"
-			_copyIntoTree "$srcName" "$src" "$target" "" "$allowLocal"
-			return $?
+	fi
+	if [ "x$_reason" = "x" ]; then
+		if [ ! -w "$src" ]; then
+			_reason="the source file is not writeable by the current user"
+		else
+			if _has_command stat; then
+				owner="`stat --format '%U' "$src"`"
+				if [ "x$owner" != "x`_username`" ]; then
+					_reason="`_username` does not own the source file"
+				fi
+			elif [ "`_username`" = "root" ] || [ "x`_uid`" == "x0" ]; then
+				_reason="the current user is root"
+			fi
 		fi
+	fi
+	if [ "x$_reason" != "x" ]; then
+		_echo "Converted $target into a copy because $_reason"
+		_copyIntoTree "$srcName" "$src" "$target" "" "$allowLocal"
+		return $?
 	fi
 	if [ ! -e "$src" ]; then
 		echo "Fatal: $src: does not exist"
