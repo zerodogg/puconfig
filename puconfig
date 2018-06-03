@@ -662,6 +662,7 @@ sub main
     my $verbosity = 0;
     my $batchMode = 0;
     my $configFile = './puconfig.yml';
+    my $shell = '/bin/sh';
     my $configDir = getcwd();
     my $origDirectory = getcwd();
 
@@ -688,6 +689,14 @@ sub main
             $configDir = dirname($configFile);
         },
         'batch' => \$batchMode,
+        'debug-dash' => sub {
+            $shell = '/bin/dash';
+            say '--debug-dash mode: using /bin/dash instead of /bin/sh in setup mode';
+            if (!-x $shell)
+            {
+                die($shell.': is not a valid shell'."\n");
+            }
+        },
         'help|h' => sub { usage(); exit 0; },
     ) or die 'Run ', basename($0), " --help for help\n";
 
@@ -746,7 +755,7 @@ sub main
             rootPath => $configDir,
         );
         $builder->writeShellScriptToFile;
-        system('/bin/sh',$file);
+        system($shell,$file);
         close($tmpfh);
     }
     elsif ($command eq 'script')

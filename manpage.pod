@@ -68,6 +68,11 @@ interperated relative to the directory containing FILE.
 
 Output version information and exit.
 
+=item I<--debug-dash>
+
+Uses /bin/dash instead of /bin/sh to execute the script in I<setup> mode. This
+is only useful for debugging issues with the shell script.
+
 =back
 
 =head1 CONFIGURATION FORMAT
