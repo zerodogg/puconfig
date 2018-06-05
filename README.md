@@ -1,23 +1,5 @@
-# puconfig
+# Moved to GitLab
 
-puconfig (portable user configs), is a program that assists in deploying user
-configs (ie. bashrc, ssh config, vimrc etc.) to many hosts.  It reads a config
-file, and then, depending on various settings, copies or symlinks the configs
-in place.
-
-It can also generate a redistributable shell script, that you can copy onto
-other machines and run to install your configs. Additionally it can automate
-this, and do the copying and running itself.
-
-## Dependencies
-
-puconfig is written in perl, and requires perl to be installed along with the
-following modules that are not bundled with perl:
-YAML::XS, String::ShellQuote, File::Temp, Moo, File::Basename
-
-The scripts that it outputs, however, have no dependencies except for a working
-unix-environment with a shell.
-
-## Configuration
-
-See [manpage.pod](manpage.pod) for config instructions
+This repository has moved to GitLab. This is merely an archive of the repository as it
+was before the move - all new development will happen on GitLab and will not
+be pushed to this repo. Visit the current repo [on gitlab: https://gitlab.com/zerodogg/puconfig](https://gitlab.com/zerodogg/puconfig)
